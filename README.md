@@ -1,4 +1,4 @@
-# Workshop: Apache Kafka and Stream Processing
+# [WIP] Workshop: Apache Kafka and Stream Processing
 
 ## Goals
 
