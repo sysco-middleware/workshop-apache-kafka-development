@@ -9,31 +9,43 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import java.io.IOException;
 import java.util.Properties;
 
-public class ProducerWithAckApp {
+public class TransactionalProducerApp {
 
   private final KafkaProducer<String, String> kafkaProducer;
 
-  private ProducerWithAckApp() {
+  private TransactionalProducerApp() {
     final Properties producerConfigs = new Properties();
     producerConfigs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, CommonProperties.BOOTSTRAP_SERVERS);
     producerConfigs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     producerConfigs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     producerConfigs.put(ProducerConfig.ACKS_CONFIG, "all");
-    // producerConfigs.put(ProducerConfig.ACKS_CONFIG, "0");
-    // producerConfigs.put(ProducerConfig.ACKS_CONFIG, "1");
+    producerConfigs.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+    producerConfigs.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "simple-transactional-app");
 
     kafkaProducer = new KafkaProducer<>(producerConfigs);
   }
 
-  private void sendRecord() {
-    final ProducerRecord<String, String> record =
-        new ProducerRecord<>("simple-topic", "record");
-    kafkaProducer.send(record);
+  private void sendRecords() {
+    try {
+      kafkaProducer.beginTransaction();
+      final ProducerRecord<String, String> record1 =
+          new ProducerRecord<>("simple-topic-1", "record");
+      kafkaProducer.send(record1);
+      final ProducerRecord<String, String> record2 =
+          new ProducerRecord<>("simple-topic-2", "record");
+      kafkaProducer.send(record2);
+      kafkaProducer.commitTransaction();
+    } catch (Throwable t) {
+      t.printStackTrace();
+      kafkaProducer.abortTransaction();
+    }
   }
 
   public static void main(String[] args) throws IOException {
-    final ProducerWithAckApp producerWithAckApp = new ProducerWithAckApp();
-    producerWithAckApp.sendRecord();
+    final TransactionalProducerApp transactionalProducerApp = new TransactionalProducerApp();
+    transactionalProducerApp.kafkaProducer.initTransactions();
+    transactionalProducerApp.sendRecords();
+
     System.out.println("Press ENTER to exit the system");
     System.in.read();
   }

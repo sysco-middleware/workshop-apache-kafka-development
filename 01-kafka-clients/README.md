@@ -164,4 +164,72 @@ By default, Kafka Producer has a property `max.in.flight.requests.per.connection
 there could up to 5 requests unacknowledged. In a case where 5 requests are sent, and the 4th one fails, Kafka
 Producer will retry, based on `retries=0`, potentially sending messages un-ordered.
 
+In cases where we want to keep strict order, we can set `max.in.flight.requests.per.connection=1` and avoid 
+unorder scenarios.
+
+```java
+    producerConfigs.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
+    producerConfigs.put(ProducerConfig.RETRIES_CONFIG, 5);
+    producerConfigs.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, 500);
+```
+
+#### Exactly-once Semantics and Transactions
+
+Since version `0.11` Kafka add support for Exactly-once Semantics (`EoS`) and Transactions. This involves
+a couple of properties:
+
+* `enable.idempotence` means that Kafka will ensure that Records are not duplicated. If `true`, then 
+`max.in.flight.requests.per.connection` should be less or equal to `5`, `retries > 0` and `acks=all`
+* `transactional.id` is used for transactions that span multiple topic partition. In this scenarios, if multiple
+`send(ProducerRecord)` are issued, this execution will ensure that all or none of these are commited.
+
+```java
+public class TransactionalProducerApp {
+
+  private final KafkaProducer<String, String> kafkaProducer;
+
+  private TransactionalProducerApp() {
+    final Properties producerConfigs = new Properties();
+    producerConfigs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, CommonProperties.BOOTSTRAP_SERVERS);
+    producerConfigs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    producerConfigs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    producerConfigs.put(ProducerConfig.ACKS_CONFIG, "all");
+    producerConfigs.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+    producerConfigs.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "simple-transactional-app"); //(1)
+
+    kafkaProducer = new KafkaProducer<>(producerConfigs);
+  }
+
+  private void sendRecords() {
+    try {
+      kafkaProducer.beginTransaction(); //(3)
+      final ProducerRecord<String, String> record1 =
+          new ProducerRecord<>("simple-topic-1", "record");
+      kafkaProducer.send(record1);
+      final ProducerRecord<String, String> record2 =
+          new ProducerRecord<>("simple-topic-2", "record");
+      kafkaProducer.send(record2);
+      kafkaProducer.commitTransaction(); //(4)
+    } catch (Throwable t) {
+      t.printStackTrace();
+      kafkaProducer.abortTransaction(); //(5)
+    }
+  }
+
+  public static void main(String[] args) throws IOException {
+    final TransactionalProducerApp transactionalProducerApp = new TransactionalProducerApp();
+    transactionalProducerApp.kafkaProducer.initTransactions(); //(2)
+    transactionalProducerApp.sendRecords();
+
+    System.out.println("Press ENTER to exit the system");
+    System.in.read();
+  }
+}
+```
+
+1. Transactinal Producer is enabled. This requires idempotency.
+2. Initialize transactional app before starting transactions. This prepare the broker for transactions from this application.
+3. Begin transaction. This could includes many `send()` operations.
+4. Commit transaction.
+5. If something fails, abort transaction.
 
