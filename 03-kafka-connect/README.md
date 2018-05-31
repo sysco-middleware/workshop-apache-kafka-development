@@ -66,3 +66,17 @@ $ kafka-avro-console-consumer --bootstrap-server localhost:9092 --topic tweets
 ```
 
 ## Demo: File Sink
+
+Load File Sink Connector:
+
+```bash
+$ confluent load file-sink -d file-sink-connector/file-sink.properties 
+```
+
+Validate Connector with API.
+
+And tail file to check that records are stores:
+
+```bash
+ tail -f /tmp/twitter-file-sink.txt 
+```
