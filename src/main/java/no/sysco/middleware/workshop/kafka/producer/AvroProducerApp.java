@@ -1,7 +1,6 @@
 package no.sysco.middleware.workshop.kafka.producer;
 
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig;
-import io.confluent.kafka.serializers.KafkaAvroSerializer;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerializer;
 import no.sysco.middleware.workshop.kafka.CommonProperties;
 import no.sysco.middleware.workshop.kafka.avro.Record1;
