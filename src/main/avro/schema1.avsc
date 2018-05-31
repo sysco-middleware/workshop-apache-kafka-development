@@ -1,0 +1,21 @@
+{
+  "namespace": "no.sysco.middleware.workshop.kafka.avro",
+  "name": "Record1",
+  "doc": "Some Record",
+  "type": "record",
+  "fields": [
+    {
+      "name": "id",
+      "type": "long"
+    },
+    {
+      "name": "record_type",
+      "type": "string",
+      "default": "RECORD_TYPE_1"
+    },
+    {
+      "name": "optional_element",
+      "type": ["string", "null"]
+    }
+  ]
+}
