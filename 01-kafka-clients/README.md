@@ -29,7 +29,7 @@ This will include: Admin, Producer and Consumer APIs.
 
 Applications can use this API to send `Record`s to an Apache Kafka cluster.
 
-We with a very simple application that just send 'hello-world' Records to Kafka:
+Here is a simple application that just send 'hello-world' Records to Kafka:
 
 > Source: `src/main/java/no/sysco/middleware/kafka/producer/SimpleProducerApp.java`
 
@@ -232,4 +232,89 @@ public class TransactionalProducerApp {
 3. Begin transaction. This could includes many `send()` operations.
 4. Commit transaction.
 5. If something fails, abort transaction.
+
+## Kafka Consumer API
+
+Applications use this API to `poll` data from Kafka Topics.
+
+> Source: src/main/java/no/sysco/middleware/workshop/kafka/consumer/SimpleConsumerApp.java
+
+```java
+public class SimpleConsumerApp implements Runnable {
+
+  private final KafkaConsumer<String, String> kafkaConsumer;
+
+  private SimpleConsumerApp() {
+    final Properties consumerConfigs = new Properties();
+    consumerConfigs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, CommonProperties.BOOTSTRAP_SERVERS);
+    consumerConfigs.put(ConsumerConfig.GROUP_ID_CONFIG, "simple-consumer-v1");
+    consumerConfigs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+    consumerConfigs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+
+    kafkaConsumer = new KafkaConsumer<>(consumerConfigs); //(1)
+  }
+
+  public void run() {
+    kafkaConsumer.subscribe(Collections.singletonList("simple-topic")); //(2)
+
+    while (true) {
+      final ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(Long.MAX_VALUE); //(3)
+
+      for (ConsumerRecord<String, String> consumerRecord : consumerRecords) {
+        String value = consumerRecord.value(); //(4)
+        out.println("Record value: " + value);
+      }
+    }
+  }
+
+  public static void main(String[] args) {
+    SimpleConsumerApp simpleConsumerApp = new SimpleConsumerApp();
+    simpleConsumerApp.run(); //(5)
+  }
+}
+```
+
+This simple applications is (1) instantiating a `KafkaConsumer` class. This consumer has some
+basic configuration required: 
+
+* `ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG`: Kafka nodes,
+* `COnsumerConfig.GROUP_ID_CONFIG`: Group Id, and
+* `ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG` and `ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,` to
+deserialize Key and Value.
+
+Group ID is used to scale different instances of a Consumer Group and process data in parallel. 
+
+> The **number of instances of a consumer group** that can be executed **in parallel** are 
+**up to the number of Partitions of a Topic**.
+> When  you have more than that, instances are idle.
+
+(2) A Consumer application usually *subscribes* to a Set of Topics. This means that the Cluster will decide
+which Topic Partitions to poll from. 
+
+There are some less common cases where you *know* which Topic Partition to use. In this cases you can use
+the `assign` method.
+
+(3) Polling data from an assignment is done by using `KafkaConsumer#poll(Long)` method. This operations is
+**blocking**, that means that your applications will block this thread while the Timeout is not triggered, 
+if no data is received. 
+
+Data is received as a batch of `ConsumerRecord` that can be iterated and processed in parallel.
+
+Step (4) is record consumption. 
+
+and finally, we will run a Consumer Group Instance `thread`.
+
+### Commits and Delivery Semantics
+
+### Offset Management
+
+### Move along the log
+
+### Isolation and Transactions
+
+
+## Kafka Admin API
+
+### Topics
+
 
