@@ -306,15 +306,191 @@ and finally, we will run a Consumer Group Instance `thread`.
 
 ### Commits and Delivery Semantics
 
+The RPC communication between the Consumer and the Kafka Cluster has some delivery semantics guided by 
+how `commit` operation is executed.
+
+Depending on the use-case, we can choose what type of processing semantics are required.
+
+> Source: src/main/java/no/sysco/middleware/workshop/kafka/consumer/CommittableConsumerApp.java
+
+```
+  private CommittableConsumerApp() {
+    final Properties consumerConfigs = new Properties();
+    consumerConfigs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, CommonProperties.BOOTSTRAP_SERVERS);
+    consumerConfigs.put(ConsumerConfig.GROUP_ID_CONFIG, "committable-consumer-v1");
+    consumerConfigs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+    consumerConfigs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+    //AT-LEAST-ONCE BY FREQUENCE (2)
+    consumerConfigs.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, Duration.ofSeconds(1).toMillis());
+
+    kafkaConsumer = new KafkaConsumer<>(consumerConfigs);
+  }
+
+  public void run() {
+    kafkaConsumer.subscribe(Collections.singletonList("simple-topic"));
+
+    while (true) {
+      final ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(Long.MAX_VALUE);
+
+      //AT-MOST-ONCE BY BATCH, BLOCKING (1)
+      // kafkaConsumer.commitSync();
+
+      //AT-MOST-ONCE BY BATCH, NON-BLOCKING (1)
+      // kafkaConsumer.commitAsync();
+
+      for (ConsumerRecord<String, String> consumerRecord : consumerRecords) {
+        String value = consumerRecord.value();
+        out.println("Record value: " + value);
+
+        //AT-LEAST-ONCE BLOCKING (4)
+        // kafkaConsumer.commitSync();
+
+        //AT-LEAST-ONCE NON-BLOCKING (4)
+        //kafkaConsumer.commitAsync();
+      }
+
+      //AT-LEAST-ONCE BY BATCH, BLOCKING (3)
+      // kafkaConsumer.commitSync();
+
+      //AT-LEAST-ONCE BY BATCH, NON-BLOCKING (3)
+      // kafkaConsumer.commitAsync();
+    }
+  }
+```
+
+#### At most once
+
+(1) This means that a record could lossing messages if processing fails, as commit is done in the first step.
+Few use-cases could have this requirements. e.g. Commiting as soon as possible to increase throughput.
+
+#### At least once
+ 
+(2) Another case, similar to `at-most-once` is `at-least-once` by frequence, where every period of time, we will
+commit. In this case, for instance, every second a commit is sent. So if some consumption fail, and we restart,
+we will return to the latest committed position (potentially been already processed).
+
+But there are cases where we want to be more specifc about the place to commit. Here are (3) and (4) 
+that we can commit per batch or per element. This will be the most costly compared to the other options but 
+the one that offers the best consistency semantics. The only case where reprocess could happen in (4) here
+is when commit fail to reach the cluster.
+
+#### Exactly-once
+
+This one is the most expensive but usully not required use case. It is expensive because it requires
+you to coordinate with your destination data store. e.g. Cassandra, Elaticsearch. 
+
+For instance, Kafka Streams, where Source and Sink are Kafka Cluster, Exactly once is possible, 
+as Offset can be committed as part of the same transaction. (See Producer Transaction Support)
+
 ### Offset Management
+
+Every time we commit, by default, `offset` and `groupId` are stored in the Kafka Cluster to enable restarting
+with latest position consumed.
+
+In Previous versions this information was stored in Zookeeper. 
+
+But it is up to the developer to define where to store this.
+
+In Kafka there is a topic to store this:
+
+```
+$ kafka-topics --zookeeper localhost --list
+__consumer_offsets
+```
+
+```
+$ kafka-topics --zookeeper localhost --describe --topic __consumer_offsets
+Topic:__consumer_offsets	PartitionCount:50	ReplicationFactor:1	Configs:segment.bytes=104857600,cleanup.policy=compact,compression.type=producer
+	Topic: __consumer_offsets	Partition: 0	Leader: 0	Replicas: 0	Isr: 0
+	Topic: __consumer_offsets	Partition: 1	Leader: 0	Replicas: 0	Isr: 0
+	Topic: __consumer_offsets	Partition: 2	Leader: 0	Replicas: 0	Isr: 0
+	Topic: __consumer_offsets	Partition: 3	Leader: 0	Replicas: 0	Isr: 0
+	Topic: __consumer_offsets	Partition: 4	Leader: 0	Replicas: 0	Isr: 0
+...
+```
+
+```
+kafka-console-consumer --bootstrap-server localhost:9092 --topic __consumer_offsets --formatter 'kafka.coordinator.group.GroupMetadataManager$OffsetsMessageFormatter'
+```
 
 ### Move along the log
 
+The first time that we subscribe to a topic, we can choose to start from the beginning or the end of the log. 
+
+```
+    //WHERE TO START
+    // consumerConfigs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, OffsetResetStrategy.EARLIEST);
+    consumerConfigs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, OffsetResetStrategy.LATEST);
+```
+
+But, what happen when we want to go back in time, and reprocess the log. There are many reasons to do this: 
+new release, new data store, bug fixing, testing. 
+
+We can use the command line to do this `kafka-consumer-group --reset-offsets`, or we can do it as part of 
+our application: https://jeqo.github.io/posts/2017-01-31-kafka-rewind-consumers-offset/
+
 ### Isolation and Transactions
 
+In the Producer we saw how it is possible to execute many `send` operations as part of one transaction.
+This uses the concept of isolation. This means that internally on the Kafka Cluster, some mechanisms are 
+used to mark a record as `COMMITTED` or not. 
+
+So, on the consumer side, we can define an Isolation Level to consume only the records that has been 
+commited as part of a transaction:
+
+```
+    consumerConfigs.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, IsolationLevel.READ_COMMITTED);
+    //DEFAULT 
+    // consumerConfigs.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, IsolationLevel.READ_UNCOMMITTED);
+```
 
 ## Kafka Admin API
 
+Admin API helps to manage Kafka Resources: Topics, Consumer Groups, and so on.
+
 ### Topics
 
+It is a good practice to create and keep Topics consistent along different environments. 
 
+We will use 2 API methods to create a new topic or update it if it exists:
+
+```
+  public static void createTopics(String bootstrapServers,
+                                  Map<NewTopic, List<ConfigEntry>> topicListMap)
+      throws ExecutionException, InterruptedException {
+    final Properties adminProperties = new Properties();
+    adminProperties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+
+    final AdminClient adminClient = KafkaAdminClient.create(adminProperties); //(1)
+
+    final Set<String> existingTopic = adminClient.listTopics().names().get();
+
+    for (Map.Entry<NewTopic, List<ConfigEntry>> newTopicAndConfig : topicListMap.entrySet()) { //(2)
+      final NewTopic topic = newTopicAndConfig.getKey();
+      if (!existingTopic.contains(topic.name())) {
+        out.println("Topic " + topic.name() + " is been created.");
+        topic.configs(
+            newTopicAndConfig
+                .getValue()
+                .stream()
+                .collect(Collectors.toMap(ConfigEntry::name, ConfigEntry::value)));
+        final CreateTopicsResult result = adminClient.createTopics(Collections.singletonList(topic)); //(3)
+        result.all().get();
+        out.println("Topic " + topic.name() + " created.");
+      } else {
+        Map<ConfigResource, Config> configs = new HashMap<>();
+        final Config config = new Config(newTopicAndConfig.getValue());
+        configs.put(new ConfigResource(ConfigResource.Type.TOPIC, topic.name()), config);
+        adminClient.alterConfigs(configs).all().get(); //(4)
+        out.println("Topic " + topic.name() + " has been updated.");
+      }
+    }
+    adminClient.close();
+  }
+```
+
+1. Instatiate an `AdminClient`
+2. List topics
+3. Per each element of a map
+4. Create topic if it does not exist.
+5. Update topic if it exists
