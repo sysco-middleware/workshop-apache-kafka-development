@@ -1,6 +1,9 @@
 package no.sysco.middleware.workshop.kafka.streams;
 
 import no.sysco.middleware.workshop.kafka.CommonProperties;
+import no.sysco.middleware.workshop.kafka.admin.TopicsApp;
+import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.serialization.Serdes;
@@ -10,8 +13,8 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Produced;
 
-import java.util.Arrays;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import static java.lang.System.out;
 
@@ -49,11 +52,16 @@ public class WordCountStreamsApp {
     return builder.build();
   }
 
-  private void start() {
+  private void start() throws ExecutionException, InterruptedException {
+    final Map<NewTopic, List<ConfigEntry>> topics = new HashMap<>();
+    topics.put(new NewTopic("text", 3, (short) 1), Collections.emptyList());
+    topics.put(new NewTopic("word-count", 3, (short) 1), Collections.emptyList());
+    TopicsApp.createTopics(CommonProperties.BOOTSTRAP_SERVERS, topics);
+
     kafkaStreams.start();
   }
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws ExecutionException, InterruptedException {
     final WordCountStreamsApp app = new WordCountStreamsApp();
 
     app.start();
