@@ -38,10 +38,22 @@ Inside Kafka Streams DSL API, there are 2 main abstractions:
 
 Both notions are key to implement Streaming Applications.
 
+It provides a functional way to process a Stream (see `RxJava`).
+
 ### DSL: Stateless Operations
+
+Stateless operations does not require any internal storage, `map`, `filter` and 
+`group` are the most common. 
 
 ### DSL: Stateful Operations
 
+Stateful operations includes Joins and Windows of time. Aggregations are also
+considered Stateful operations (`count`, `aggregate`, `reduce`)
+
 ### Tables and Joins
 
+TODO
+
 ## Windows
+
+TODO
