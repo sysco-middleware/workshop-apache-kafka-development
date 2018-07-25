@@ -9,6 +9,11 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import java.io.IOException;
 import java.util.Properties;
 
+/**
+ * Creates a Producer that has transaction enabled and is able to send several records as part of
+ * the same transaction. This is achieved initializing, then starting a transaction, send records
+ * and committing/rollback transaction.
+ */
 public class TransactionalProducerApp {
 
   private final KafkaProducer<String, String> kafkaProducer;
@@ -25,7 +30,7 @@ public class TransactionalProducerApp {
     kafkaProducer = new KafkaProducer<>(producerConfigs);
   }
 
-  private void sendRecords() {
+  private void sendTxRecords() {
     try {
       kafkaProducer.beginTransaction();
       final ProducerRecord<String, String> record1 =
@@ -44,7 +49,8 @@ public class TransactionalProducerApp {
   public static void main(String[] args) throws IOException {
     final TransactionalProducerApp transactionalProducerApp = new TransactionalProducerApp();
     transactionalProducerApp.kafkaProducer.initTransactions();
-    transactionalProducerApp.sendRecords();
+
+    transactionalProducerApp.sendTxRecords();
 
     System.out.println("Press ENTER to exit the system");
     System.in.read();
