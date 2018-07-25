@@ -9,6 +9,11 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import java.io.IOException;
 import java.util.Properties;
 
+/**
+ * Producer Application that instantiate a Producer with different Acknowledge configurations.
+ *
+ * It re-use the topic created by SimpleProducer app, or creates a topic (if enabled)
+ */
 public class ProducerWithAckApp {
 
   private final KafkaProducer<String, String> kafkaProducer;
@@ -18,8 +23,11 @@ public class ProducerWithAckApp {
     producerConfigs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, CommonProperties.BOOTSTRAP_SERVERS);
     producerConfigs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     producerConfigs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    // Acknowledge from all replicas (at least the ones defined `min.insync.replicas`)
     producerConfigs.put(ProducerConfig.ACKS_CONFIG, "all");
+    // Acknowledge from none of the replicas
     // producerConfigs.put(ProducerConfig.ACKS_CONFIG, "0");
+    // Acknowledge from leader replica
     // producerConfigs.put(ProducerConfig.ACKS_CONFIG, "1");
 
     kafkaProducer = new KafkaProducer<>(producerConfigs);
@@ -31,9 +39,14 @@ public class ProducerWithAckApp {
     kafkaProducer.send(record);
   }
 
+  /**
+   * Run Producer application
+   */
   public static void main(String[] args) throws IOException {
     final ProducerWithAckApp producerWithAckApp = new ProducerWithAckApp();
+
     producerWithAckApp.sendRecord();
+
     System.out.println("Press ENTER to exit the system");
     System.in.read();
   }
