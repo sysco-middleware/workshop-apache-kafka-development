@@ -9,6 +9,12 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import java.io.IOException;
 import java.util.Properties;
 
+/**
+ * Creates a Producer application that will only keep 1 in-flight connection un-acknowledge and block
+ * the Producer until receiving ack.
+ * Only one record send every time, ensure strict order, as retrying will not change sequence of
+ * requests, but performance could be affected.
+ */
 public class StrictOrderProducerApp {
 
   private final KafkaProducer<String, String> kafkaProducer;
@@ -19,7 +25,7 @@ public class StrictOrderProducerApp {
     producerConfigs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     producerConfigs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     producerConfigs.put(ProducerConfig.ACKS_CONFIG, "all");
-    producerConfigs.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
+    producerConfigs.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1); //only 1 request per connection
     producerConfigs.put(ProducerConfig.RETRIES_CONFIG, 5);
     producerConfigs.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, 500);
 
