@@ -10,7 +10,9 @@ import java.io.IOException;
 import java.util.Properties;
 
 /**
- * Simple Kafka Producer application
+ * Simple Kafka Producer application. It creates a single record to be send to a Kafka Cluster.
+ *
+ * It does not require a created topic, as it will create a topic automatically (if enabled)
  */
 public class SimpleProducerApp {
 
