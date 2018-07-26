@@ -2,6 +2,7 @@ package no.sysco.middleware.workshop.kafka.streams;
 
 import no.sysco.middleware.workshop.kafka.CommonProperties;
 import no.sysco.middleware.workshop.kafka.admin.TopicsApp;
+import no.sysco.middleware.workshop.kafka.streams.util.KafkaStreamsTopologyGraphvizPrinter;
 import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -13,11 +14,19 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Produced;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
 import static java.lang.System.out;
 
+/**
+ * Simplest streaming application to count words from text paragraphs
+ */
 public class WordCountStreamsApp {
   private final KafkaStreams kafkaStreams;
 

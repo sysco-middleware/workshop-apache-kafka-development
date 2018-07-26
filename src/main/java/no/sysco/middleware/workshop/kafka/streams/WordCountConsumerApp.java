@@ -10,6 +10,9 @@ import java.util.Properties;
 
 import static java.lang.System.out;
 
+/**
+ * Consumes word counts from WordCountStreamsApp
+ */
 public class WordCountConsumerApp implements Runnable {
 
   private final KafkaConsumer<String, Long> kafkaConsumer;

@@ -1,4 +1,4 @@
-package no.sysco.middleware.workshop.kafka.streams;
+package no.sysco.middleware.workshop.kafka.streams.util;
 
 import org.apache.kafka.streams.TopologyDescription;
 
@@ -6,7 +6,7 @@ import java.io.StringWriter;
 import java.util.stream.Stream;
 
 /**
- *
+ * Utility to produce a Graphviz diagram from Kafka Streams topology.
  */
 public class KafkaStreamsTopologyGraphvizPrinter {
 

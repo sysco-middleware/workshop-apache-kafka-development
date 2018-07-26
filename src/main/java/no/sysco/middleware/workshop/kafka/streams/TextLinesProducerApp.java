@@ -10,13 +10,13 @@ import java.io.IOException;
 import java.util.Properties;
 
 /**
- * Hello world!
+ * Text Lines Producer, to be consumed by WordCountStreamsApp
  */
-public class LinesProducerApp {
+public class TextLinesProducerApp {
 
   private final KafkaProducer<String, String> kafkaProducer;
 
-  private LinesProducerApp() {
+  private TextLinesProducerApp() {
     final Properties producerConfigs = new Properties();
     producerConfigs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, CommonProperties.BOOTSTRAP_SERVERS);
     producerConfigs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -32,7 +32,7 @@ public class LinesProducerApp {
   }
 
   public static void main(String[] args) throws IOException {
-    final LinesProducerApp simpleProducerApp = new LinesProducerApp();
+    final TextLinesProducerApp simpleProducerApp = new TextLinesProducerApp();
     simpleProducerApp.sendRecord();
 
     System.out.println("Press ENTER to exit the system");
