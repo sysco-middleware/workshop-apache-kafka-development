@@ -48,9 +48,7 @@ public class WordCountStreamsAppTest {
         Arrays.asList(
             KeyValue.pair("", "aaa bbb ccc"),
             KeyValue.pair("", "aaa bbb"),
-            KeyValue.pair("", "aaa")
-        )
-    ));
+            KeyValue.pair("", "aaa"))));
 
 //    testDriver.advanceWallClockTime(1000L);
 

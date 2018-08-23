@@ -2,20 +2,28 @@ package no.sysco.middleware.workshop.kafka.streams;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import no.sysco.middleware.workshop.kafka.CommonProperties;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.Serializer;
-import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.connect.json.JsonDeserializer;
 import org.apache.kafka.connect.json.JsonSerializer;
 import org.apache.kafka.streams.*;
-import org.apache.kafka.streams.errors.InvalidStateStoreException;
 import org.apache.kafka.streams.kstream.*;
-import org.apache.kafka.streams.state.*;
+import org.apache.kafka.streams.state.KeyValueIterator;
+import org.apache.kafka.streams.state.QueryableStoreTypes;
+import org.apache.kafka.streams.state.ReadOnlyWindowStore;
+import org.apache.kafka.streams.state.WindowStoreIterator;
 
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import static java.lang.System.out;
 
 /**
  *
@@ -25,137 +33,61 @@ public class KafkaTweetsStreams {
   private static final Deserializer<JsonNode> jsonNodeDeserializer = new JsonDeserializer();
   private static final Serde<JsonNode> jsonNodeSerde = Serdes.serdeFrom(jsonNodeSerializer, jsonNodeDeserializer);
   //Topics
-  private static final String TWEETS = "tweets";
-  private static final String TWEETS_HASHTAGS = "tweets-hashtags";
+  private static final String TWEETS = "twitter_json_01";
   //Queryable store names
-  private static final String TWEETS_BY_USERNAME = "tweets-by-username";
-  private static final String HASHTAGS_COUNT = "tweets-hashtags-count";
-  private static final String HASHTAG_PER_MINUTE = "tweets-hashtag-per-minute";
-  private final KafkaStreams tweetsPerUserStream;
-  private final KafkaStreams hashtagsCountStream;
-  private final KafkaStreams hashtagPerMinuteStream;
+  private static final String HASHTAGS_COUNT = "tweets_hashtags_count_02";
+  private static final String HASHTAG_PER_MINUTE = "tweets_hashtag_per_minute_02";
 
-  public KafkaTweetsStreams() {
-    tweetsPerUserStream = buildTweetsPerUser();
-    tweetsPerUserStream.start();
+  //  private final KafkaStreams kafkaStreams;
+  private final KafkaStreams hashtagsStream;
 
-    hashtagsCountStream = buildCountHashtags();
-    hashtagsCountStream.start();
 
-    hashtagPerMinuteStream = buildHashtagProgress();
-    hashtagPerMinuteStream.start();
+  KafkaTweetsStreams() {
+    Properties config1 = new Properties();
+    config1.put(StreamsConfig.APPLICATION_ID_CONFIG, "tweets-streams-v02");
+    config1.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CommonProperties.BOOTSTRAP_SERVERS);
+    config1.put(StreamsConfig.STATE_DIR_CONFIG, "target/kafka-streams0");
+    config1.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, Topology.AutoOffsetReset.EARLIEST.name().toLowerCase());
+    hashtagsStream = new KafkaStreams(buildCountHashtags(), config1);
+
   }
 
-  private static KafkaStreams buildTweetsPerUser() {
-    final Properties config = new Properties();
-    config.put(StreamsConfig.APPLICATION_ID_CONFIG, "tweets-streams-application-tweets-per-user");
-    config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-
-    final StreamsBuilder builder = new StreamsBuilder();
-
-    builder
-        .stream(TWEETS,  Consumed.with(jsonNodeSerde, jsonNodeSerde))
-        //Defining a key = screen_name
-        .selectKey((key, value) ->
-            value.get("payload").get("user").get("screen_name").textValue())
-        //Define new value = tweets
-        .mapValues(value ->
-            value.get("payload").get("text").textValue())
-        //Join tweets by key (i.e. screen_name)
-        .groupByKey()
-        //Reducing to concatenation of tweets, and keep it on TWEETS_BY_USERNAME store
-        //queryable store
-        .reduce((value1, value2) -> value1+"\n\n"+value2, Materialized.<String, String, KeyValueStore<Bytes, byte[]>>as(TWEETS_BY_USERNAME))
-        //Save values on TWEETS_BY_USERNAME topic
-        .toStream()
-        .to(TWEETS_BY_USERNAME, Produced.with(Serdes.String(), Serdes.String()));
-
-    return new KafkaStreams(builder.build(), config);
+  void start() {
+    hashtagsStream.start();
   }
 
-  private static KafkaStreams buildCountHashtags() {
-    final Properties config = new Properties();
-    config.put(StreamsConfig.APPLICATION_ID_CONFIG, "tweets-streams-application-hashtags-count");
-    config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+  void stop() {
+    hashtagsStream.cleanUp();
 
+    hashtagsStream.close();
+  }
+
+  private Topology buildCountHashtags() {
     final StreamsBuilder builder = new StreamsBuilder();
 
-    KStream<JsonNode, String> hashtagsStream = builder
-        .stream(TWEETS,  Consumed.with(jsonNodeSerde, jsonNodeSerde))
-        .mapValues(value -> value.get("payload").get("entities").withArray("hashtags"))
+    final KGroupedStream<String, String> stream = builder
+        .stream(TWEETS, Consumed.with(jsonNodeSerde, jsonNodeSerde))
+        .mapValues(value -> value.withArray("HashtagEntities"))
         .flatMapValues(ArrayNode.class::cast)
-        .mapValues(value -> value.get("text").textValue());
+        .mapValues(value -> value.get("Text").textValue())
+        .mapValues((ValueMapper<String, String>) String::toLowerCase)
+        .groupBy((key, value) -> value, Serialized.with(Serdes.String(), Serdes.String()));
 
-    hashtagsStream.to(TWEETS_HASHTAGS, Produced.with(jsonNodeSerde, Serdes.String()));
+    stream
+        .count(Materialized.as(HASHTAGS_COUNT));
 
-    hashtagsStream
-        .groupBy((key, value)-> value, Serialized.with(Serdes.String(), Serdes.String()))
-        .count()
-        .toStream()
-        .to(HASHTAGS_COUNT, Produced.with(Serdes.String(), Serdes.Long()));
-
-    return new KafkaStreams(builder.build(), config);
-  }
-
-  private static KafkaStreams buildHashtagProgress() {
-    final Properties config = new Properties();
-    config.put(StreamsConfig.APPLICATION_ID_CONFIG, "tweets-streams-application-hashtag-progress");
-    config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-
-    final StreamsBuilder builder = new StreamsBuilder();
-
-    builder
-        .stream(TWEETS_HASHTAGS, Consumed.with(jsonNodeSerde, Serdes.String()))
-        .groupBy((key, value)-> value, Serialized.with(Serdes.String(), Serdes.String()))
-        //.count(TimeWindows.of(TimeUnit.MINUTES.toMillis(1)), HASHTAG_PER_MINUTE);
-        .windowedBy(TimeWindows.of(TimeUnit.MINUTES.toMillis(1)))
+    stream
+        .windowedBy(TimeWindows.of(Duration.ofMinutes(1).toMillis()))
         // default behavior for count() provides Serdes.Long() for value
         .count(Materialized.as(HASHTAG_PER_MINUTE));
-
-    return new KafkaStreams(builder.build(), config);
+    return builder.build();
   }
 
-  private static <T> T waitUntilStoreIsQueryable(
-      final String storeName,
-      final QueryableStoreType<T> queryableStoreType,
-      final KafkaStreams streams)
-      throws InterruptedException {
-    while (true) {
-      try {
-        return streams.store(storeName, queryableStoreType);
-      } catch (InvalidStateStoreException ignored) {
-        ignored.printStackTrace();
-        // store not yet ready for querying
-        Thread.sleep(1000);
-      }
-    }
-  }
-
-  public String getTweetsByUsername(String username) {
+  String getHashtags() {
     try {
-      final ReadOnlyKeyValueStore<String, String> store =
-          waitUntilStoreIsQueryable(
-              TWEETS_BY_USERNAME,
-              QueryableStoreTypes.<String, String>keyValueStore(),
-              tweetsPerUserStream);
-      final String value = store.get(username);
-      return Optional.ofNullable(value).orElse("No tweets");
-    } catch (Exception e) {
-      throw new IllegalStateException("Kafka State Store is not loaded", e);
-    }
-  }
-
-
-  public String getHashtags() {
-    try {
-      final ReadOnlyKeyValueStore<String, Long> store =
-          waitUntilStoreIsQueryable(
-              HASHTAGS_COUNT,
-              QueryableStoreTypes.<String, Long>keyValueStore(),
-              hashtagsCountStream);
-      Map<String, Long> counts =
-          new HashMap<>();
-      final KeyValueIterator<String, Long> all = store.all();
+      Map<String, Long> counts = new HashMap<>();
+      final KeyValueIterator<String, Long> all =
+          hashtagsStream.store(HASHTAGS_COUNT, QueryableStoreTypes.<String, Long>keyValueStore()).all();
       while (all.hasNext()) {
         KeyValue<String, Long> next = all.next();
         counts.put(next.key, next.value);
@@ -169,10 +101,7 @@ public class KafkaTweetsStreams {
   public String getHashtagProgress(String hashtag) {
     try {
       ReadOnlyWindowStore<String, Long> windowStore =
-          waitUntilStoreIsQueryable(
-              HASHTAG_PER_MINUTE,
-              QueryableStoreTypes.windowStore(),
-              hashtagPerMinuteStream);
+          hashtagsStream.store(HASHTAG_PER_MINUTE, QueryableStoreTypes.windowStore());
       long timeFrom = 0; // beginning of time = oldest available
       long timeTo = System.currentTimeMillis(); // now (in processing-time)
       WindowStoreIterator<Long> iterator = windowStore.fetch(hashtag, timeFrom, timeTo);
@@ -186,5 +115,12 @@ public class KafkaTweetsStreams {
     } catch (Exception e) {
       throw new IllegalStateException("Kafka State Store is not loaded", e);
     }
+  }
+
+  public static void main(String[] args) {
+    KafkaTweetsStreams streams = new KafkaTweetsStreams();
+    streams.hashtagsStream.setUncaughtExceptionHandler((thread, throwable) -> throwable.printStackTrace());
+
+    streams.start();
   }
 }
