@@ -1,8 +1,8 @@
 package no.sysco.middleware.workshop.kafka.streams;
 
+import no.sysco.middleware.kafka.util.KafkaStreamsTopologyGraphvizPrinter;
 import no.sysco.middleware.workshop.kafka.CommonProperties;
 import no.sysco.middleware.workshop.kafka.admin.TopicsApp;
-import no.sysco.middleware.workshop.kafka.streams.util.KafkaStreamsTopologyGraphvizPrinter;
 import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -14,12 +14,7 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Produced;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static java.lang.System.out;
@@ -30,7 +25,7 @@ import static java.lang.System.out;
 public class WordCountStreamsApp {
   private final KafkaStreams kafkaStreams;
 
-  private WordCountStreamsApp() {
+  WordCountStreamsApp() {
     final Properties streamsConfigs = new Properties();
     streamsConfigs.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CommonProperties.BOOTSTRAP_SERVERS);
     streamsConfigs.put(StreamsConfig.APPLICATION_ID_CONFIG, "word-count-app-v1");
@@ -41,22 +36,19 @@ public class WordCountStreamsApp {
 
     final Topology topology = buildTopology();
 
-    out.println(KafkaStreamsTopologyGraphvizPrinter.print(topology.describe()));
+    out.println(KafkaStreamsTopologyGraphvizPrinter.printPlantUml(topology));
 
     kafkaStreams = new KafkaStreams(topology, streamsConfigs);
   }
 
-  private Topology buildTopology() {
+  Topology buildTopology() {
     final StreamsBuilder builder = new StreamsBuilder();
     builder
         .<String, String>stream("text")
-        .peek((k, v) -> out.println(v))
         .flatMapValues(line -> Arrays.asList(line.split("\\s+")))
-        .peek((k, v) -> out.println(v))
         .groupBy((k, word) -> word)
         .count()
         .toStream()
-        .peek((k, v) -> out.println(v))
         .to("word-count", Produced.valueSerde(Serdes.Long()));
     return builder.build();
   }
