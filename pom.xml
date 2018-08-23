@@ -18,6 +18,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
+
     <kafka.version>2.0.0</kafka.version>
     <confluent.version>5.0.0</confluent.version>
     <avro.version>1.8.1</avro.version>
@@ -48,6 +49,11 @@
       <groupId>org.apache.avro</groupId>
       <artifactId>avro</artifactId>
       <version>${avro.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>joda-time</groupId>
+      <artifactId>joda-time</artifactId>
+      <version>2.10</version>
     </dependency>
 
     <dependency>
@@ -107,7 +113,7 @@
             <configuration>
               <stringType>String</stringType>
               <sourceDirectory>${project.basedir}/src/main/avro/</sourceDirectory>
-              <outputDirectory>${project.basedir}/src/main/java/</outputDirectory>
+              <outputDirectory>${project.basedir}/target/generated-sources/avro/</outputDirectory>
             </configuration>
           </execution>
         </executions>
@@ -122,6 +128,38 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>downloadSchemas</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-schema-registry-maven-plugin</artifactId>
+            <version>${confluent.version}</version>
+            <configuration>
+              <schemaRegistryUrls>
+                <param>http://localhost:8081</param>
+              </schemaRegistryUrls>
+              <outputDirectory>src/main/avro</outputDirectory>
+              <subjects/>
+              <subjectPatterns>
+                <!--<param>twitter_json_01-value</param>-->
+              </subjectPatterns>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
+  <pluginRepositories>
+    <pluginRepository>
+      <id>confluent</id>
+      <url>http://packages.confluent.io/maven/</url>
+    </pluginRepository>
+  </pluginRepositories>
 
   <repositories>
     <repository>
