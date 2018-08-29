@@ -50,6 +50,10 @@ Stateless operations does not require any internal storage, `map`, `filter` and
 Stateful operations includes Joins and Windows of time. Aggregations are also
 considered Stateful operations (`count`, `aggregate`, `reduce`)
 
+#### Timestamp Extractor
+
+TODO
+
 ### Tables and Joins
 
 TODO

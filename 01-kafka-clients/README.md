@@ -227,7 +227,7 @@ public class TransactionalProducerApp {
 }
 ```
 
-1. Transactinal Producer is enabled. This requires idempotency.
+1. Transactional Producer is enabled. This requires idempotent feature enabled.
 2. Initialize transactional app before starting transactions. This prepare the broker for transactions from this application.
 3. Begin transaction. This could includes many `send()` operations.
 4. Commit transaction.
@@ -313,7 +313,7 @@ Depending on the use-case, we can choose what type of processing semantics are r
 
 > Source: src/main/java/no/sysco/middleware/workshop/kafka/consumer/CommittableConsumerApp.java
 
-```
+```java
   private CommittableConsumerApp() {
     final Properties consumerConfigs = new Properties();
     consumerConfigs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, CommonProperties.BOOTSTRAP_SERVERS);
@@ -398,7 +398,7 @@ $ kafka-topics --zookeeper localhost --list
 __consumer_offsets
 ```
 
-```
+```bash
 $ kafka-topics --zookeeper localhost --describe --topic __consumer_offsets
 Topic:__consumer_offsets	PartitionCount:50	ReplicationFactor:1	Configs:segment.bytes=104857600,cleanup.policy=compact,compression.type=producer
 	Topic: __consumer_offsets	Partition: 0	Leader: 0	Replicas: 0	Isr: 0
@@ -409,7 +409,7 @@ Topic:__consumer_offsets	PartitionCount:50	ReplicationFactor:1	Configs:segment.b
 ...
 ```
 
-```
+```bash
 kafka-console-consumer --bootstrap-server localhost:9092 --topic __consumer_offsets --formatter 'kafka.coordinator.group.GroupMetadataManager$OffsetsMessageFormatter'
 ```
 
@@ -417,7 +417,7 @@ kafka-console-consumer --bootstrap-server localhost:9092 --topic __consumer_offs
 
 The first time that we subscribe to a topic, we can choose to start from the beginning or the end of the log. 
 
-```
+```java
     //WHERE TO START
     // consumerConfigs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, OffsetResetStrategy.EARLIEST);
     consumerConfigs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, OffsetResetStrategy.LATEST);
@@ -438,11 +438,40 @@ used to mark a record as `COMMITTED` or not.
 So, on the consumer side, we can define an Isolation Level to consume only the records that has been 
 commited as part of a transaction:
 
-```
+```java
     consumerConfigs.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, IsolationLevel.READ_COMMITTED);
     //DEFAULT 
     // consumerConfigs.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, IsolationLevel.READ_UNCOMMITTED);
 ```
+
+## Common Considerations
+
+### Timestamp
+
+Since version `0.10.0.0` Kafka supports a timestamp field as part of Kafka Records that 
+are sent and received from a Topic.
+
+There are two types of Timestamps supported by Kafka: `CreateTime` and `LogAppendTime`. 
+Where `CreateTime` is default. Accuracy of this field is **milliseconds**.
+
+#### CreateTime
+
+`CreateTime` means -by default- that the time where the application creates a Producer Record.
+It will hide the latency between when record was created and when it is ingested on the log.
+
+It is the default value as it is easy to think about **retention** based on this value.
+
+#### LogAppendTime
+
+This type use the system timestamp when Kafka log receives and stores record on the log.
+If timestamp is already present on the record, this value could be interesting to compare
+latency between event-time and ingestion-time.
+
+
+Evaluate which type makes more sense for your use-case.
+
+This values are very important for Stream Processing as it will impact how it will 
+align records on time. See [Kafka Streams](../04-kafka-streams)
 
 ## Kafka Admin API
 
@@ -454,7 +483,7 @@ It is a good practice to create and keep Topics consistent along different envir
 
 We will use 2 API methods to create a new topic or update it if it exists:
 
-```
+```java
   public static void createTopics(String bootstrapServers,
                                   Map<NewTopic, List<ConfigEntry>> topicListMap)
       throws ExecutionException, InterruptedException {
