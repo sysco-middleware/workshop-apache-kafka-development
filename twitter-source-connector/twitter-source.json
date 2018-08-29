@@ -1,0 +1,18 @@
+{
+  "name": "twitter_source_json_v01",
+  "config": {
+    "connector.class": "com.github.jcustenborder.kafka.connect.twitter.TwitterSourceConnector",
+    "twitter.oauth.consumerKey": "UNlTu7ZodAnfpv4yeJJmQFkzT",
+    "twitter.oauth.consumerSecret": "n1d8UbayHn0yKxocZDo7IxbxJsPr41pnpk8lvrpuFHXnAgTpBB",
+    "twitter.oauth.accessToken": "135295304-BtQsTuzMelReQTIOAwHePx9z1dO1NrfhTKnXv0LV",
+    "twitter.oauth.accessTokenSecret": "e4FKesWZdbvJmNkKWgLn4UVUrpr1KJANOQrTlxdUCnn9h",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": false,
+    "key.converter.schemas.enable": false,
+    "kafka.delete.topic": "twitter_deletes_json_01",
+    "kafka.status.topic": "twitter_json_01",
+    "process.deletes": true,
+    "filter.keywords": "java,big,data,kafka"
+  }
+}
