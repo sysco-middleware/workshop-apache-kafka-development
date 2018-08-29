@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.util.Properties;
 
 /**
- * Hello world!
+ * Producer sending Avro Serialized records to Kafka Topic
  */
 public class AvroProducerApp {
 
